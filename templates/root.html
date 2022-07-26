@@ -1,0 +1,31 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8" name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="stylesheet" href="https://www.w3schools.com/w3css/4/w3.css">
+    <title>work timing stuff</title>
+    <style>
+        .cen {
+            position: absolute;
+            top: 50%;
+            transform: translate(0, -50%);
+            margin-left: 20vw;
+            margin-right: 20vw;
+            width: 60vw;
+        }
+
+        .some {
+            display: flex;
+            align-items: center;
+            align-content: center;
+        }
+    </style>
+</head>
+<body>
+<div class="some">
+    <form class="w3-container cen" id="form" action="/uploadfile/" method="post" enctype="multipart/form-data">
+        <input class="w3-input w3-border" name="file" id="fileUpload" type="file" onchange="form.submit()"/>
+    </form>
+</div>
+</body>
+</html>
