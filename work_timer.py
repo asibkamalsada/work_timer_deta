@@ -10,8 +10,8 @@ from fastapi import UploadFile
 
 
 class ParsedCsv:
-    date_to_times: dict
-    date_to_comment: dict
+    date_to_times: dict[int, list[tuple[datetime]]]
+    date_to_comment: dict[int, str]
     current_year: int
     current_month: int
 
@@ -61,19 +61,19 @@ async def parse_csv(file: UploadFile):
                 parsed_csv.current_year = current_date.year
         else:
             raise Exception("working over the end of a day")
-        start_time = datetime.datetime.fromisoformat(start)
-        end_time = datetime.datetime.fromisoformat(end)
+        start_time: datetime = datetime.datetime.fromisoformat(start)
+        end_time: datetime = datetime.datetime.fromisoformat(end)
         if not parsed_csv.date_to_times.get(current_date.day, None):
             parsed_csv.date_to_times[current_date.day] = list()
         parsed_csv.date_to_times[current_date.day].append((start_time, end_time))
-        if row.get("Kommentar", "") != "":
+        if row.get("Kommentar", "").strip() != "":
             parsed_csv.date_to_comment[current_date.day] = row["Kommentar"]
         del start_time, end_time, start, end
     del spam_reader
     return parsed_csv
 
 
-def fill_workbook(workbook, parsed_csv):
+def fill_workbook(workbook, parsed_csv: ParsedCsv):
     sheet = workbook.active
 
     sheet["D4"] = parsed_csv.current_month_name
@@ -82,6 +82,14 @@ def fill_workbook(workbook, parsed_csv):
         sheet[f"B{6 + month_day}"] = f"{month_day}."
 
     for day, times in parsed_csv.date_to_times.items():
+        comment = parsed_csv.date_to_comment.get(day)
+
+        if comment and comment.strip().lower() == "clocked":
+            continue
+
+        if comment:
+            sheet[f"i{6 + day}"] = comment
+
         times.sort(key=lambda x: x[0])
         start: datetime.datetime = times[0][0]
         end: datetime.datetime = times[-1][-1]
@@ -98,8 +106,7 @@ def fill_workbook(workbook, parsed_csv):
             sheet[f"E{6 + day}"] = pause
             sheet[f"E{6 + day}"].number_format = "h:mm"
 
-        if parsed_csv.date_to_comment.get(day):
-            sheet[f"i{6 + day}"] = parsed_csv.date_to_comment[day]
+
 
 #
 # o = win32com.client.Dispatch("Excel.Application")
