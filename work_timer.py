@@ -18,7 +18,10 @@ class ParsedCsv:
     @property
     def current_month_name(self) -> str:
         with different_locale("de_DE"):
-            return month_name[self.current_month]
+            if self.current_month is not None:
+                return month_name[self.current_month]
+            else:
+                return None
 
 
 async def convert(file: UploadFile):
