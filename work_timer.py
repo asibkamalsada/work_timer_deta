@@ -55,8 +55,6 @@ async def parse_csv(file: UploadFile):
     contents = (await file.read()).decode("utf-8").splitlines()
 
     spam_reader = csv.DictReader([x.strip() for x in contents[:-3]])
-    parsed_csv.current_month = None
-    parsed_csv.current_year = None
     for row in spam_reader:
         start: str = row["Von"]
         end: str = row["Bis"]
