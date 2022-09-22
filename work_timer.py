@@ -1,3 +1,4 @@
+import dataclasses
 from calendar import month_name, different_locale, monthrange
 import datetime
 
@@ -9,11 +10,18 @@ import openpyxl
 from fastapi import UploadFile
 
 
+@dataclasses.dataclass
+class Timed:
+    start: datetime
+    end: datetime
+    comment: str
+
+
+@dataclasses.dataclass
 class ParsedCsv:
-    date_to_times: dict[int, list[tuple[datetime]]]
-    date_to_comment: dict[int, str]
-    current_year: int
-    current_month: int
+    date_to_times: dict[int, list[Timed]]
+    current_year: int = None
+    current_month: int = None
 
     @property
     def current_month_name(self) -> str:
@@ -42,9 +50,7 @@ async def convert(file: UploadFile):
 
 
 async def parse_csv(file: UploadFile):
-    parsed_csv = ParsedCsv()
-    parsed_csv.date_to_comment = dict()
-    parsed_csv.date_to_times = {}
+    parsed_csv = ParsedCsv(dict())
 
     contents = (await file.read()).decode("utf-8").splitlines()
 
@@ -66,12 +72,11 @@ async def parse_csv(file: UploadFile):
             raise Exception("working over the end of a day")
         start_time: datetime = datetime.datetime.fromisoformat(start)
         end_time: datetime = datetime.datetime.fromisoformat(end)
+        comment: str = row.get("Kommentar", "").strip()
         if not parsed_csv.date_to_times.get(current_date.day, None):
             parsed_csv.date_to_times[current_date.day] = list()
-        parsed_csv.date_to_times[current_date.day].append((start_time, end_time))
-        if row.get("Kommentar", "").strip() != "":
-            parsed_csv.date_to_comment[current_date.day] = row["Kommentar"]
-        del start_time, end_time, start, end
+        parsed_csv.date_to_times[current_date.day].append(Timed(start_time, end_time, comment))
+        del start_time, end_time, comment, start, end
     del spam_reader
     return parsed_csv
 
@@ -85,17 +90,19 @@ def fill_workbook(workbook, parsed_csv: ParsedCsv):
         sheet[f"B{6 + month_day}"] = f"{month_day}."
 
     for day, times in parsed_csv.date_to_times.items():
-        comment = parsed_csv.date_to_comment.get(day)
 
-        if comment and comment.strip().lower() == "clocked":
+        times = [time for time in times if time.comment.lower() != "clocked"]
+
+        if not times:
             continue
 
-        if comment:
+        comment = ", ".join([time.comment for time in times if time.comment.strip() != ""])
+        if comment and comment.strip() != "":
             sheet[f"i{6 + day}"] = comment
 
-        times.sort(key=lambda x: x[0])
-        start: datetime.datetime = times[0][0]
-        end: datetime.datetime = times[-1][-1]
+        times.sort(key=lambda x: x.start)
+        start: datetime.datetime = times[0].start
+        end: datetime.datetime = times[-1].end
 
         sheet[f"C{6 + day}"] = start.time()  # .isoformat(timespec="seconds")
         sheet[f"C{6 + day}"].number_format = "h:mm"
@@ -105,7 +112,7 @@ def fill_workbook(workbook, parsed_csv: ParsedCsv):
         if len(times) > 1:
             pause = datetime.timedelta()
             for i in range(len(times) - 1):
-                pause += times[i + 1][0] - times[i][1]
+                pause += times[i + 1].start - times[i].end
             sheet[f"E{6 + day}"] = pause
             sheet[f"E{6 + day}"].number_format = "h:mm"
 
