@@ -94,7 +94,7 @@ def fill_workbook(workbook, parsed_csv: ParsedCsv):
         if not times:
             continue
 
-        comment = ", ".join([time.comment for time in times if time.comment.strip() != ""])
+        comment = ", ".join({time.comment for time in times if time.comment.strip() != ""})
         if comment and comment.strip() != "":
             sheet[f"i{6 + day}"] = comment
 
