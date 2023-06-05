@@ -10,6 +10,9 @@ import openpyxl
 from fastapi import UploadFile
 
 
+ENCODING = "latin1"
+
+
 @dataclasses.dataclass
 class Timed:
     start: datetime
@@ -59,7 +62,7 @@ async def convert(file: UploadFile):
 async def parse_csv(file: UploadFile):
     parsed_csv = ParsedCsv(dict())
 
-    contents = (await file.read()).decode("utf-8").splitlines()
+    contents = (await file.read()).decode(ENCODING).splitlines()
 
     spam_reader = csv.DictReader([x.strip() for x in contents[:-3]])
     for row in spam_reader:
