@@ -4,6 +4,7 @@ from calendar import monthrange
 import datetime
 
 import csv
+from enum import StrEnum
 from tempfile import NamedTemporaryFile
 
 import openpyxl
@@ -12,6 +13,14 @@ from fastapi import UploadFile
 
 
 ENCODING = "utf-8"
+
+
+class Activities(StrEnum):
+    WORK = "Clocked"
+    HOMEOFFICE = "Homeoffice"
+    VACATION = "Urlaub"
+    HOLIDAY = "Feiertag"
+    SICK = "Krank"
 
 
 @dataclasses.dataclass
@@ -71,7 +80,7 @@ async def parse_csv(file: UploadFile):
 
     uploaded_csv: csv.DictReader = csv.DictReader(contents)
     for row in uploaded_csv:
-        activity: str = row["Aktivitätstyp"]
+        activity: Activities = Activities(row["Aktivitätstyp"])
         start: datetime = datetime.datetime.fromisoformat(row["Von"])
         end: datetime = datetime.datetime.fromisoformat(row["Bis"])
         t = datetime.datetime.strptime(row["Dauer"], "%H:%M")
@@ -93,17 +102,17 @@ async def parse_csv(file: UploadFile):
         current_day = start.day
 
         match activity:
-            case "Clocked":
+            case Activities.WORK:
                 pass
-            case "Homeoffice":
+            case Activities.HOMEOFFICE:
                 if work_times.work.get(current_day, None) is None:
                     work_times.work[current_day] = []
                 work_times.work[current_day].append(Timed(start, end, comment))
-            case "Urlaub":
+            case Activities.VACATION:
                 work_times.vacations[current_day] = duration
-            case "Feiertag":
+            case Activities.HOLIDAY:
                 work_times.holidays.add(current_day)
-            case "Krank":
+            case Activities.SICK:
                 work_times.sick_days.add(current_day)
             case _:
                 raise Exception(f"unknown activity type: {activity}")
