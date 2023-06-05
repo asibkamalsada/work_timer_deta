@@ -85,7 +85,7 @@ async def parse_csv(file: UploadFile):
         end: datetime = datetime.datetime.fromisoformat(row["Bis"])
         t = datetime.datetime.strptime(row["Dauer"], "%H:%M")
         duration: datetime.timedelta = datetime.timedelta(hours=t.hour, minutes=t.minute)
-        comment: str = row.get("Kommentar", None)
+        comment: str = row.get("Kommentar", "")
 
         if work_times.current_month is None:
             work_times.current_month = start.month
