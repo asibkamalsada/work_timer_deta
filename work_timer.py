@@ -1,5 +1,5 @@
 import dataclasses
-from calendar import month_name, different_locale, monthrange
+from calendar import monthrange
 import datetime
 
 import csv
@@ -25,11 +25,18 @@ class ParsedCsv:
 
     @property
     def current_month_name(self) -> str:
-        with different_locale("de_DE"):
-            if self.current_month is not None:
-                return month_name[self.current_month]
-            else:
-                return None
+        return ["Januar",
+                "Februar",
+                "März",
+                "April",
+                "Mai",
+                "Juni",
+                "Juli",
+                "August",
+                "September",
+                "Oktober",
+                "November",
+                "Dezember"][self.current_month - 1]
 
 
 async def convert(file: UploadFile):
