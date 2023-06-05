@@ -23,10 +23,10 @@ class Timed:
 
 @dataclasses.dataclass
 class WorkTimes:
-    date_to_times: dict[int, list[Timed]]
-    date_to_vacation_duration: dict[int, datetime.timedelta]
-    holidays: list[int]
-    sick_days: list[int]
+    work: dict[int, list[Timed]]
+    vacations: dict[int, datetime.timedelta]
+    holidays: set[int]
+    sick_days: set[int]
     current_year: int = None
     current_month: int = None
 
@@ -65,7 +65,7 @@ async def convert(file: UploadFile):
 
 
 async def parse_csv(file: UploadFile):
-    work_times = WorkTimes(date_to_times={}, date_to_vacation_duration={}, holidays=[], sick_days=[])
+    work_times = WorkTimes(work={}, vacations={}, holidays=set(), sick_days=set())
 
     contents = [x.strip() for x in (await file.read()).decode(ENCODING).splitlines()[:-7]]
 
@@ -74,6 +74,8 @@ async def parse_csv(file: UploadFile):
         activity: str = row["Aktivitätstyp"]
         start: datetime = datetime.datetime.fromisoformat(row["Von"])
         end: datetime = datetime.datetime.fromisoformat(row["Bis"])
+        t = datetime.datetime.strptime(row["Dauer"], "%H:%M")
+        duration: datetime.timedelta = datetime.timedelta(hours=t.hour, minutes=t.minute)
         comment: str = row.get("Kommentar", None)
 
         if work_times.current_month is None:
@@ -83,24 +85,26 @@ async def parse_csv(file: UploadFile):
         if start.date().replace(day=1) \
                 != end.date().replace(day=1)  \
                 != datetime.date(year=work_times.current_year, month=work_times.current_month, day=1):
-            raise Exception("not the same months in the same years")
+            raise Exception(f'not the same months in the same years in "{row}"')
+
+        if start.day != end.day:
+            raise Exception(f'working over the end of a day in "{row}')
+
+        current_day = start.day
 
         match activity:
             case "Clocked":
                 pass
             case "Homeoffice":
-                if start.day != end.day:
-                    raise Exception("working over the end of a day")
-
-                if work_times.date_to_times.get(start.day, None) is None:
-                    work_times.date_to_times[start.day] = []
-                work_times.date_to_times[start.day].append(Timed(start, end, comment))
+                if work_times.work.get(current_day, None) is None:
+                    work_times.work[current_day] = []
+                work_times.work[current_day].append(Timed(start, end, comment))
             case "Urlaub":
-                pass
+                work_times.vacations[current_day] = duration
             case "Feiertag":
-                pass
+                work_times.holidays.add(current_day)
             case "Krank":
-                pass
+                work_times.sick_days.add(current_day)
             case _:
                 raise Exception(f"unknown activity type: {activity}")
 
@@ -115,7 +119,7 @@ def fill_workbook(workbook, work_times: WorkTimes):
     for month_day in range(1, monthrange(work_times.current_year, work_times.current_month)[1] + 1):
         sheet[f"B{6 + month_day}"] = f"{month_day}."
 
-    for day, times in work_times.date_to_times.items():
+    for day, times in work_times.work.items():
 
         times = [time for time in times if time.comment.lower() != "clocked"]
 
