@@ -1,3 +1,4 @@
+import os
 import dataclasses
 from calendar import monthrange
 import datetime
@@ -49,14 +50,12 @@ async def convert(file: UploadFile):
 
     result_file = f"Arbeitszeiten_Asib_Kamalsada_{parsed_csv.current_year}_{parsed_csv.current_month:02d}_{parsed_csv.current_month_name}.xlsx"
 
-    with NamedTemporaryFile() as tmp:
+    with NamedTemporaryFile(suffix=".xlsx", delete=False) as tmp:
         workbook.save(tmp.name)
-        tmp.seek(0)
-        binary_result = tmp.read()
 
     print(f"csv read from '{file.filename}'")
     workbook.close()
-    return result_file, binary_result
+    return result_file, tmp.name
 
 
 async def parse_csv(file: UploadFile):
@@ -65,6 +64,8 @@ async def parse_csv(file: UploadFile):
     contents = (await file.read()).decode(ENCODING).splitlines()
 
     spam_reader = csv.DictReader([x.strip() for x in contents[:-3]])
+    parsed_csv.current_month = None
+    parsed_csv.current_year = None
     for row in spam_reader:
         start: str = row["Von"]
         end: str = row["Bis"]
@@ -124,6 +125,9 @@ def fill_workbook(workbook, parsed_csv: ParsedCsv):
             sheet[f"E{6 + day}"] = pause
             sheet[f"E{6 + day}"].number_format = "h:mm"
 
+
+def cleanup(file_name):
+    os.remove(file_name)
 
 
 #

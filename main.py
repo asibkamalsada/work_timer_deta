@@ -1,6 +1,7 @@
 from fastapi import FastAPI, UploadFile, Request, Form
 from fastapi.templating import Jinja2Templates
-from starlette.responses import Response
+from starlette.background import BackgroundTask
+from starlette.responses import FileResponse
 
 import work_timer
 
@@ -15,6 +16,6 @@ async def root(request: Request):
 
 @app.post("/uploadfile/")
 async def create_upload_file(file: UploadFile = Form()):
-    name, binary = await work_timer.convert(file)
-    return Response(content=binary, media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-                    headers={"Content-Disposition": f'attachment; filename="{name}"'})
+    name, file_path = await work_timer.convert(file)
+    return FileResponse(file_path, media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                        filename=name, background=BackgroundTask(work_timer.cleanup, file_path))
