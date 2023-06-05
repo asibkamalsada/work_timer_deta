@@ -169,6 +169,10 @@ def fill_workbook(workbook, work_times: WorkTimes):
         sheet[f"G{row}"] = duration
         sheet[f"G{row}"].number_format = "h"
 
+    for day in work_times.holidays:
+        # don't write holidays into the Arbeitszeitnachweis
+        pass
+
 
 def cleanup(file_name):
     os.remove(file_name)
