@@ -162,6 +162,13 @@ def fill_workbook(workbook, work_times: WorkTimes):
             sheet[f"E{row}"] = pause
             sheet[f"E{row}"].number_format = "h:mm"
 
+    for day, duration in work_times.vacations.items():
+        row = 6 + day
+
+        sheet[f"H{row}"] = Activities.VACATION
+        sheet[f"G{row}"] = duration
+        sheet[f"G{row}"].number_format = "h"
+
 
 def cleanup(file_name):
     os.remove(file_name)
