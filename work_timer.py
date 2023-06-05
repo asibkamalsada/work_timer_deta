@@ -11,7 +11,7 @@ import openpyxl
 from fastapi import UploadFile
 
 
-ENCODING = "latin1"
+ENCODING = "utf-8"
 
 
 @dataclasses.dataclass
