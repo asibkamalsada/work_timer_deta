@@ -5,6 +5,7 @@ import datetime
 
 import csv
 from enum import StrEnum
+from functools import reduce
 from tempfile import NamedTemporaryFile
 
 import openpyxl
@@ -85,7 +86,7 @@ async def parse_csv(file: UploadFile):
         end: datetime = datetime.datetime.fromisoformat(row["Bis"])
         t = datetime.datetime.strptime(row["Dauer"], "%H:%M")
         duration: datetime.timedelta = datetime.timedelta(hours=t.hour, minutes=t.minute)
-        comment: str = row.get("Kommentar", "")
+        comment: str = (row.get("Kommentar") or "").strip()
 
         if work_times.current_month is None:
             work_times.current_month = start.month
@@ -121,6 +122,10 @@ async def parse_csv(file: UploadFile):
 
 
 def fill_workbook(workbook, work_times: WorkTimes):
+    if not work_times.vacations.keys().isdisjoint(work_times.holidays):
+        raise Exception("took vacation on holidays: "
+                        f"{work_times.vacations.keys() & work_times.holidays}")
+
     sheet = workbook.active
 
     sheet["D4"] = work_times.current_month_name
@@ -128,32 +133,34 @@ def fill_workbook(workbook, work_times: WorkTimes):
     for month_day in range(1, monthrange(work_times.current_year, work_times.current_month)[1] + 1):
         sheet[f"B{6 + month_day}"] = f"{month_day}."
 
+    # loop over homeoffice (or other commented not clocked work)
     for day, times in work_times.work.items():
-
-        times = [time for time in times if time.comment.lower() != "clocked"]
+        row = 6 + day
 
         if not times:
             continue
 
-        comment = ", ".join({time.comment for time in times if time.comment.strip() != ""})
-        if comment and comment.strip() != "":
-            sheet[f"i{6 + day}"] = comment
+        comment = ", ".join({time.comment for time in times if time.comment != ""})
+        if comment == "":
+            sheet[f"I{row}"] = Activities.HOMEOFFICE
+        else:
+            sheet[f"I{row}"] = comment
 
         times.sort(key=lambda x: x.start)
         start: datetime.datetime = times[0].start
         end: datetime.datetime = times[-1].end
 
-        sheet[f"C{6 + day}"] = start.time()  # .isoformat(timespec="seconds")
-        sheet[f"C{6 + day}"].number_format = "h:mm"
-        sheet[f"D{6 + day}"] = end.time()  # .isoformat(timespec="seconds")
-        sheet[f"D{6 + day}"].number_format = "h:mm"
+        sheet[f"C{row}"] = start.time()  # .isoformat(timespec="seconds")
+        sheet[f"C{row}"].number_format = "h:mm"
+        sheet[f"D{row}"] = end.time()  # .isoformat(timespec="seconds")
+        sheet[f"D{row}"].number_format = "h:mm"
 
         if len(times) > 1:
             pause = datetime.timedelta()
             for i in range(len(times) - 1):
                 pause += times[i + 1].start - times[i].end
-            sheet[f"E{6 + day}"] = pause
-            sheet[f"E{6 + day}"].number_format = "h:mm"
+            sheet[f"E{row}"] = pause
+            sheet[f"E{row}"].number_format = "h:mm"
 
 
 def cleanup(file_name):
