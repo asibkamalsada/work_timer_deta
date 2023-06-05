@@ -173,6 +173,12 @@ def fill_workbook(workbook, work_times: WorkTimes):
         # don't write holidays into the Arbeitszeitnachweis
         pass
 
+    for day in work_times.sick_days:
+        row = 6 + day
+
+        sheet[f"H{row}"] = Activities.SICK
+        sheet[f"G{row}"] = 8
+
 
 def cleanup(file_name):
     os.remove(file_name)
