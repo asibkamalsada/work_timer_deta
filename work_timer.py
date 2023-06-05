@@ -22,33 +22,39 @@ class Timed:
 
 
 @dataclasses.dataclass
-class ParsedCsv:
+class WorkTimes:
     date_to_times: dict[int, list[Timed]]
+    date_to_vacation_duration: dict[int, datetime.timedelta]
+    holidays: list[int]
+    sick_days: list[int]
     current_year: int = None
     current_month: int = None
 
     @property
     def current_month_name(self) -> str:
-        return ["Januar",
-                "Februar",
-                "März",
-                "April",
-                "Mai",
-                "Juni",
-                "Juli",
-                "August",
-                "September",
-                "Oktober",
-                "November",
-                "Dezember"][self.current_month - 1]
+        return [
+            "Januar",
+            "Februar",
+            "März",
+            "April",
+            "Mai",
+            "Juni",
+            "Juli",
+            "August",
+            "September",
+            "Oktober",
+            "November",
+            "Dezember"
+        ][self.current_month - 1]
 
 
 async def convert(file: UploadFile):
-    parsed_csv: ParsedCsv = await parse_csv(file)
+    work_times: WorkTimes = await parse_csv(file)
     workbook = openpyxl.load_workbook("Arbeitszeitnachweis Vorlage.xlsx")
-    fill_workbook(workbook, parsed_csv)
+    fill_workbook(workbook, work_times)
 
-    result_file = f"Arbeitszeiten_Asib_Kamalsada_{parsed_csv.current_year}_{parsed_csv.current_month:02d}_{parsed_csv.current_month_name}.xlsx"
+    result_file = f"Arbeitszeiten_Asib_Kamalsada_{work_times.current_year}" \
+                  f"_{work_times.current_month:02d}_{work_times.current_month_name}.xlsx"
 
     with NamedTemporaryFile(suffix=".xlsx", delete=False) as tmp:
         workbook.save(tmp.name)
@@ -59,46 +65,57 @@ async def convert(file: UploadFile):
 
 
 async def parse_csv(file: UploadFile):
-    parsed_csv = ParsedCsv(dict())
+    work_times = WorkTimes(date_to_times={}, date_to_vacation_duration={}, holidays=[], sick_days=[])
 
-    contents = (await file.read()).decode(ENCODING).splitlines()
+    contents = [x.strip() for x in (await file.read()).decode(ENCODING).splitlines()[:-7]]
 
-    spam_reader = csv.DictReader([x.strip() for x in contents[:-3]])
-    parsed_csv.current_month = None
-    parsed_csv.current_year = None
-    for row in spam_reader:
-        start: str = row["Von"]
-        end: str = row["Bis"]
-        if datetime.date.fromisoformat(start.split()[0]) == datetime.date.fromisoformat(end.split()[0]):
-            current_date = datetime.date.fromisoformat(start.split()[0])
-            if parsed_csv.current_month:
-                if parsed_csv.current_month != current_date.month:
-                    raise Exception("not the same months")
-            else:
-                parsed_csv.current_month = current_date.month
-                parsed_csv.current_year = current_date.year
-        else:
-            raise Exception("working over the end of a day")
-        start_time: datetime = datetime.datetime.fromisoformat(start)
-        end_time: datetime = datetime.datetime.fromisoformat(end)
-        comment: str = row.get("Kommentar", "").strip()
-        if not parsed_csv.date_to_times.get(current_date.day, None):
-            parsed_csv.date_to_times[current_date.day] = list()
-        parsed_csv.date_to_times[current_date.day].append(Timed(start_time, end_time, comment))
-        del start_time, end_time, comment, start, end
-    del spam_reader
-    return parsed_csv
+    uploaded_csv: csv.DictReader = csv.DictReader(contents)
+    for row in uploaded_csv:
+        activity: str = row["Aktivitätstyp"]
+        start: datetime = datetime.datetime.fromisoformat(row["Von"])
+        end: datetime = datetime.datetime.fromisoformat(row["Bis"])
+        comment: str = row.get("Kommentar", None)
+
+        if work_times.current_month is None:
+            work_times.current_month = start.month
+            work_times.current_year = start.year
+
+        if start.date().replace(day=1) \
+                != end.date().replace(day=1)  \
+                != datetime.date(year=work_times.current_year, month=work_times.current_month, day=1):
+            raise Exception("not the same months in the same years")
+
+        match activity:
+            case "Clocked":
+                pass
+            case "Homeoffice":
+                if start.day != end.day:
+                    raise Exception("working over the end of a day")
+
+                if work_times.date_to_times.get(start.day, None) is None:
+                    work_times.date_to_times[start.day] = []
+                work_times.date_to_times[start.day].append(Timed(start, end, comment))
+            case "Urlaub":
+                pass
+            case "Feiertag":
+                pass
+            case "Krank":
+                pass
+            case _:
+                raise Exception(f"unknown activity type: {activity}")
+
+    return work_times
 
 
-def fill_workbook(workbook, parsed_csv: ParsedCsv):
+def fill_workbook(workbook, work_times: WorkTimes):
     sheet = workbook.active
 
-    sheet["D4"] = parsed_csv.current_month_name
+    sheet["D4"] = work_times.current_month_name
 
-    for month_day in range(1, monthrange(parsed_csv.current_year, parsed_csv.current_month)[1] + 1):
+    for month_day in range(1, monthrange(work_times.current_year, work_times.current_month)[1] + 1):
         sheet[f"B{6 + month_day}"] = f"{month_day}."
 
-    for day, times in parsed_csv.date_to_times.items():
+    for day, times in work_times.date_to_times.items():
 
         times = [time for time in times if time.comment.lower() != "clocked"]
 
