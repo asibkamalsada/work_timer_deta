@@ -3,7 +3,7 @@ v: 0
 micros:
   - name: work-timer-deta
     src: ./
-    engine: python3.9
+    engine: python3.8
     primary: true
     public_routes:
       - "/*"

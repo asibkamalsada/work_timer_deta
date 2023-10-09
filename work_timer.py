@@ -4,14 +4,13 @@ from calendar import monthrange
 import datetime
 
 import csv
-from enum import StrEnum
-from functools import reduce
 from tempfile import NamedTemporaryFile
+from typing import Dict, List, Set
 
 import openpyxl
 
 from fastapi import UploadFile
-
+from strenum import StrEnum
 
 ENCODING = "utf-8"
 
@@ -33,10 +32,10 @@ class Timed:
 
 @dataclasses.dataclass
 class WorkTimes:
-    work: dict[int, list[Timed]]
-    vacations: dict[int, datetime.timedelta]
-    holidays: set[int]
-    sick_days: set[int]
+    work: Dict[int, List[Timed]]
+    vacations: Dict[int, datetime.timedelta]
+    holidays: Set[int]
+    sick_days: Set[int]
     current_year: int = None
     current_month: int = None
 
@@ -105,21 +104,20 @@ async def parse_csv(file: UploadFile):
 
         current_day = start.day
 
-        match activity:
-            case Activities.WORK:
-                pass
-            case Activities.HOMEOFFICE:
-                if work_times.work.get(current_day, None) is None:
-                    work_times.work[current_day] = []
-                work_times.work[current_day].append(Timed(start, end, comment))
-            case Activities.VACATION:
-                work_times.vacations[current_day] = duration
-            case Activities.HOLIDAY:
-                work_times.holidays.add(current_day)
-            case Activities.SICK:
-                work_times.sick_days.add(current_day)
-            case _:
-                raise Exception(f"unknown activity type: {activity}")
+        if activity == Activities.WORK:
+            pass
+        elif activity == Activities.HOMEOFFICE:
+            if work_times.work.get(current_day, None) is None:
+                work_times.work[current_day] = []
+            work_times.work[current_day].append(Timed(start, end, comment))
+        elif activity == Activities.VACATION:
+            work_times.vacations[current_day] = duration
+        elif activity == Activities.HOLIDAY:
+            work_times.holidays.add(current_day)
+        elif activity == Activities.SICK:
+            work_times.sick_days.add(current_day)
+        else:
+            raise Exception(f"unknown activity type: {activity}")
 
     return work_times
 
