@@ -77,16 +77,19 @@ async def convert(file: UploadFile):
 async def parse_csv(file: UploadFile):
     work_times = WorkTimes(work={}, vacations={}, holidays=set(), sick_days=set())
 
-    contents = [x.strip() for x in (await file.read()).decode(ENCODING).splitlines()[:-7]]
+    contents = [x.strip() for x in (await file.read()).decode(ENCODING).splitlines()]
 
     uploaded_csv: csv.DictReader = csv.DictReader(contents)
     for row in uploaded_csv:
-        activity: Activities = Activities(row["Aktivitätstyp"])
-        start: datetime = datetime.datetime.fromisoformat(row["Von"])
-        end: datetime = datetime.datetime.fromisoformat(row["Bis"])
-        t = datetime.datetime.strptime(row["Dauer"], "%H:%M")
-        duration: datetime.timedelta = datetime.timedelta(hours=t.hour, minutes=t.minute)
-        comment: str = (row.get("Kommentar") or "").strip()
+        try:
+            activity: Activities = Activities(row["Aktivitätstyp"])
+            start: datetime = datetime.datetime.fromisoformat(row["Von"])
+            end: datetime = datetime.datetime.fromisoformat(row["Bis"])
+            t = datetime.datetime.strptime(row["Dauer"], "%H:%M")
+            duration: datetime.timedelta = datetime.timedelta(hours=t.hour, minutes=t.minute)
+            comment: str = (row.get("Kommentar") or "").strip()
+        except Exception:
+            continue
 
         if work_times.current_month is None:
             work_times.current_month = start.month
