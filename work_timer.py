@@ -98,36 +98,50 @@ async def parse_csv(file: UploadFile):
             work_times.current_month = start.month
             work_times.current_year = start.year
 
-        if (
-            start.date().replace(day=1)
-            != end.date().replace(day=1)
-            != datetime.date(
-                year=work_times.current_year, month=work_times.current_month, day=1
-            )
-        ):
-            raise Exception(f'not the same months in the same years in "{row}"')
-
         if start.day != end.day:
-            raise Exception(f'working over the end of a day in "{row}')
+            if end.day - start.day > 1:
+                raise Exception(f'worked at least one day straight (24h) in "{row}"')
 
-        current_day = start.day
+            # assuming it is just one night between start and end
 
-        if activity == Activities.WORK:
-            pass
-        elif activity == Activities.HOMEOFFICE:
-            if work_times.work.get(current_day, None) is None:
-                work_times.work[current_day] = []
-            work_times.work[current_day].append(Timed(start, end, comment))
-        elif activity == Activities.VACATION:
-            work_times.vacations[current_day] = duration
-        elif activity == Activities.HOLIDAY:
-            work_times.holidays.add(current_day)
-        elif activity == Activities.SICK:
-            work_times.sick_days.add(current_day)
+            if start.month == work_times.current_month:
+                new_end = datetime.datetime.combine(start.date(), datetime.time.max)
+                new_end = new_end.replace(second=0)
+                await parse_activity(work_times, activity, start, new_end, comment)
+
+            new_start = datetime.datetime.combine(end.date(), datetime.time.min)
+            new_start = new_start.replace(second=0)
+            if new_start.month == work_times.current_month:
+                await parse_activity(work_times, activity, new_start, end, comment)
         else:
-            raise Exception(f"unknown activity type: {activity}")
+            await parse_activity(work_times, activity, start, end, comment)
 
     return work_times
+
+
+async def parse_activity(
+    work_times: WorkTimes,
+    activity: Activities,
+    start: datetime.datetime,
+    end: datetime.datetime,
+    comment: str,
+):
+    current_day = start.day
+
+    if activity == Activities.WORK:
+        pass
+    elif activity == Activities.HOMEOFFICE:
+        if current_day not in work_times.work:
+            work_times.work[current_day] = []
+        work_times.work[current_day].append(Timed(start, end, comment))
+    elif activity == Activities.VACATION:
+        work_times.vacations[current_day] = end - start
+    elif activity == Activities.HOLIDAY:
+        work_times.holidays.add(current_day)
+    elif activity == Activities.SICK:
+        work_times.sick_days.add(current_day)
+    else:
+        raise Exception(f"unknown activity type: {activity}")
 
 
 def fill_workbook(workbook, work_times: WorkTimes):
