@@ -53,7 +53,7 @@ class WorkTimes:
             "September",
             "Oktober",
             "November",
-            "Dezember"
+            "Dezember",
         ][self.current_month - 1]
 
 
@@ -62,8 +62,10 @@ async def convert(file: UploadFile):
     workbook = openpyxl.load_workbook("Arbeitszeitnachweis Vorlage.xlsx")
     fill_workbook(workbook, work_times)
 
-    result_file = f"Arbeitszeiten_Asib_Kamalsada_{work_times.current_year}" \
-                  f"_{work_times.current_month:02d}_{work_times.current_month_name}.xlsx"
+    result_file = (
+        f"Arbeitszeiten_Asib_Kamalsada_{work_times.current_year}"
+        f"_{work_times.current_month:02d}_{work_times.current_month_name}.xlsx"
+    )
 
     with NamedTemporaryFile(suffix=".xlsx", delete=False) as tmp:
         workbook.save(tmp.name)
@@ -85,7 +87,9 @@ async def parse_csv(file: UploadFile):
             start: datetime = datetime.datetime.fromisoformat(row["Von"])
             end: datetime = datetime.datetime.fromisoformat(row["Bis"])
             t = datetime.datetime.strptime(row["Dauer"], "%H:%M")
-            duration: datetime.timedelta = datetime.timedelta(hours=t.hour, minutes=t.minute)
+            duration: datetime.timedelta = datetime.timedelta(
+                hours=t.hour, minutes=t.minute
+            )
             comment: str = (row.get("Kommentar") or "").strip()
         except Exception:
             continue
@@ -94,9 +98,13 @@ async def parse_csv(file: UploadFile):
             work_times.current_month = start.month
             work_times.current_year = start.year
 
-        if start.date().replace(day=1) \
-                != end.date().replace(day=1)  \
-                != datetime.date(year=work_times.current_year, month=work_times.current_month, day=1):
+        if (
+            start.date().replace(day=1)
+            != end.date().replace(day=1)
+            != datetime.date(
+                year=work_times.current_year, month=work_times.current_month, day=1
+            )
+        ):
             raise Exception(f'not the same months in the same years in "{row}"')
 
         if start.day != end.day:
@@ -124,14 +132,18 @@ async def parse_csv(file: UploadFile):
 
 def fill_workbook(workbook, work_times: WorkTimes):
     if not work_times.vacations.keys().isdisjoint(work_times.holidays):
-        raise Exception("took vacation on holidays: "
-                        f"{work_times.vacations.keys() & work_times.holidays}")
+        raise Exception(
+            "took vacation on holidays: "
+            f"{work_times.vacations.keys() & work_times.holidays}"
+        )
 
     sheet = workbook.active
 
     sheet["D4"] = work_times.current_month_name
 
-    for month_day in range(1, monthrange(work_times.current_year, work_times.current_month)[1] + 1):
+    for month_day in range(
+        1, monthrange(work_times.current_year, work_times.current_month)[1] + 1
+    ):
         sheet[f"B{6 + month_day}"] = f"{month_day}."
 
     # loop over homeoffice (or other commented not clocked work)
