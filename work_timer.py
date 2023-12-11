@@ -57,8 +57,11 @@ class WorkTimes:
         ][self.current_month - 1]
 
 
-async def convert(file: UploadFile):
-    work_times: WorkTimes = await parse_csv(file)
+async def convert(file: UploadFile, current_month_year: str):
+    month_year_selection = datetime.datetime.strptime(current_month_year, "%Y-%m")
+    work_times: WorkTimes = await parse_csv(
+        file, month_year_selection.year, month_year_selection.month
+    )
     workbook = openpyxl.load_workbook("Arbeitszeitnachweis Vorlage.xlsx")
     fill_workbook(workbook, work_times)
 
@@ -75,8 +78,15 @@ async def convert(file: UploadFile):
     return result_file, tmp.name
 
 
-async def parse_csv(file: UploadFile):
-    work_times = WorkTimes(work={}, vacations={}, holidays=set(), sick_days=set())
+async def parse_csv(file: UploadFile, current_year: int, current_month: int):
+    work_times = WorkTimes(
+        work={},
+        vacations={},
+        holidays=set(),
+        sick_days=set(),
+        current_year=current_year,
+        current_month=current_month,
+    )
 
     contents = [x.strip() for x in (await file.read()).decode(ENCODING).splitlines()]
 
@@ -94,24 +104,26 @@ async def parse_csv(file: UploadFile):
         except Exception:
             continue
 
-        if work_times.current_month is None:
-            work_times.current_month = start.month
-            work_times.current_year = start.year
-
         if start.day != end.day:
             if end.day - start.day > 1:
                 raise Exception(f'worked at least one day straight (24h) in "{row}"')
 
             # assuming it is just one night between start and end
 
-            if start.month == work_times.current_month:
+            if (
+                start.year == work_times.current_year
+                and start.month == work_times.current_month
+            ):
                 new_end = datetime.datetime.combine(start.date(), datetime.time.max)
                 new_end = new_end.replace(second=0)
                 await parse_activity(work_times, activity, start, new_end, comment)
 
             new_start = datetime.datetime.combine(end.date(), datetime.time.min)
             new_start = new_start.replace(second=0)
-            if new_start.month == work_times.current_month:
+            if (
+                new_start.year == work_times.current_year
+                and new_start.month == work_times.current_month
+            ):
                 await parse_activity(work_times, activity, new_start, end, comment)
         else:
             await parse_activity(work_times, activity, start, end, comment)
